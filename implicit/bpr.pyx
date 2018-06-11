@@ -11,6 +11,7 @@ from libc.math cimport exp
 from libcpp cimport bool
 from libcpp.vector cimport vector
 from libcpp.algorithm cimport binary_search
+cimport cyrandom as cyrnd
 
 import numpy as np
 import scipy.sparse
@@ -26,6 +27,10 @@ cdef extern from "<random>" namespace "std":
 
     cdef cppclass uniform_int_distribution[T]:
         uniform_int_distribution(T, T)
+        T operator()(mt19937) nogil
+
+    cdef cppclass discrete_distribution[T]:
+        discrete_distribution()
         T operator()(mt19937) nogil
 
 
@@ -442,7 +447,8 @@ def bpr_favor_update(RNGVector rng,
             liked_id = itemids[liked_index]
             user_id = userids[liked_index]
 
-            disliked_index = rng.sample(indptr[user_id], indptr[user_id + 1])
+            disliked_index = cyrnd.randint(indptr[user_id], indptr[user_id + 1] + 1)
+            # disliked_index = rng.sample(indptr[user_id], indptr[user_id + 1])
             # disliked_index = np.random.sample(indptr[user_id], indptr[user_id + 1] + 1)
             disliked_id = itemids[disliked_index]
 
