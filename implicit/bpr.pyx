@@ -59,6 +59,9 @@ cdef class RNGVector(object):
     cdef inline long generate(self, int thread_id) nogil:
         return self.dist[thread_id](self.rng[thread_id])
 
+    cdef inline long sample(self, long start, long end) nogil:
+        return np.random.sample(start, end + 1)
+
 
 class BayesianPersonalizedRanking(MatrixFactorizationBase):
     """ Bayesian Personalized Ranking
@@ -439,7 +442,8 @@ def bpr_favor_update(RNGVector rng,
             liked_id = itemids[liked_index]
             user_id = userids[liked_index]
 
-            disliked_index = np.random.sample(indptr[user_id], indptr[user_id + 1]+1)
+            disliked_index = rng.sample(indptr[user_id], indptr[user_id + 1])
+            # disliked_index = np.random.sample(indptr[user_id], indptr[user_id + 1] + 1)
             disliked_id = itemids[disliked_index]
 
             # if disliked == liked, skip
