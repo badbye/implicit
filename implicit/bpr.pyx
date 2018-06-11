@@ -60,7 +60,7 @@ cdef class RNGVector(object):
         return self.dist[thread_id](self.rng[thread_id])
 
     cdef inline long sample(self, long start, long end) nogil:
-        return np.random.sample(start, end + 1)
+        return np.random.randint(start, end)
 
 
 class BayesianPersonalizedRanking(MatrixFactorizationBase):
