@@ -8,10 +8,10 @@ import tqdm
 
 from cython.parallel import parallel, prange
 from libc.math cimport exp
+from libc.stdio cimport printf
 from libcpp cimport bool
 from libcpp.vector cimport vector
 from libcpp.algorithm cimport binary_search
-cimport cyrandom as cyrnd
 
 import numpy as np
 import scipy.sparse
@@ -29,10 +29,10 @@ cdef extern from "<random>" namespace "std":
         uniform_int_distribution(T, T)
         T operator()(mt19937) nogil
 
-    cdef cppclass discrete_distribution[T]:
-        discrete_distribution()
+    cdef cppclass uniform_real_distribution[T]:
+        uniform_real_distribution()
+        uniform_real_distribution(T a, T b)
         T operator()(mt19937) nogil
-
 
 log = logging.getLogger("implicit")
 
@@ -55,17 +55,19 @@ cdef class RNGVector(object):
     liked/disliked items here in a thread safe manner """
     cdef vector[mt19937] rng
     cdef vector[uniform_int_distribution[long]]  dist
+    cdef vector[uniform_real_distribution[float]]  real
 
     def __init__(self, int num_threads, long rows):
         for i in range(num_threads):
             self.rng.push_back(mt19937(np.random.randint(2**31)))
             self.dist.push_back(uniform_int_distribution[long](0, rows))
+            self.real.push_back(uniform_real_distribution[float](0.0, 1.0))
 
     cdef inline long generate(self, int thread_id) nogil:
         return self.dist[thread_id](self.rng[thread_id])
 
-    cdef inline long sample(self, long start, long end) nogil:
-        return np.random.randint(start, end)
+    cdef inline float sample(self, int thread_id) nogil:
+        return self.real[thread_id](self.rng[thread_id])
 
 
 class BayesianPersonalizedRanking(MatrixFactorizationBase):
@@ -427,11 +429,11 @@ def bpr_favor_update(RNGVector rng,
                floating[:, :] X, floating[:, :] Y,
                float learning_rate, float reg, int num_threads,
                bool verify_neg,
-               integral[:] score_vec):
+               floating[:] score_vec):
     cdef integral users = X.shape[0], items = Y.shape[0]
     cdef long samples = len(userids), i, liked_index, disliked_index, correct = 0, skipped = 0
     cdef integral j, liked_id, disliked_id, thread_id, user_id
-    cdef floating z, score, temp, liked_score, disliked_score
+    cdef floating z, score, temp, liked_score, disliked_score, random_index
 
     cdef floating * user
     cdef floating * liked
@@ -447,9 +449,8 @@ def bpr_favor_update(RNGVector rng,
             liked_id = itemids[liked_index]
             user_id = userids[liked_index]
 
-            disliked_index = cyrnd.randint(indptr[user_id], indptr[user_id + 1] + 1)
-            # disliked_index = rng.sample(indptr[user_id], indptr[user_id + 1])
-            # disliked_index = np.random.sample(indptr[user_id], indptr[user_id + 1] + 1)
+            random_index = rng.sample(thread_id)
+            disliked_index = indptr[user_id] + <long>((indptr[user_id + 1] - indptr[user_id]) * random_index )
             disliked_id = itemids[disliked_index]
 
             # if disliked == liked, skip
