@@ -1,6 +1,7 @@
 import cython
 from cython cimport floating, integral
 import logging
+import itertools
 import multiprocessing
 import random
 import time
@@ -348,6 +349,7 @@ class BayesianPersonalizedFavorRanking(BayesianPersonalizedRanking):
         self.num_threads = num_threads
         self.verify_same = verify_same
         self.show_progress = True
+        self.user_items = None
 
     @cython.cdivision(True)
     @cython.boundscheck(False)
@@ -372,6 +374,7 @@ class BayesianPersonalizedFavorRanking(BayesianPersonalizedRanking):
         # TODO: might make more sense to just changes inputs to be users by items instead
         # but that would be a major breaking API change
         user_items = item_users.T.tocsr()
+        self.user_items = user_items
         if not user_items.has_sorted_indices:
             user_items.sort_indices()
 
@@ -421,6 +424,38 @@ class BayesianPersonalizedFavorRanking(BayesianPersonalizedRanking):
                 progress.set_postfix({"correct": "%.2f%%" % (100.0 * correct / (total - skipped)),
                                       "skipped": "%.2f%%" % (100.0 * skipped / total)})
 
+
+        def recommend(self, userid, N=10, filter_liked=False, filter_items=None, recalculate_user=False):
+            user = self._user_factor(userid, self.user_items, recalculate_user)
+            # calculate the top N items, removing the users own liked items from the results
+            liked = set(self.user_items[userid].indices)
+            scores = self.item_factors.dot(user)
+            if filter_items:
+                liked.update(filter_items)
+
+            count = N + len(liked)
+            if count < len(scores):
+                ids = np.argpartition(scores, -count)[-count:]
+                best = sorted(zip(ids, scores[ids]), key=lambda x: -x[1])
+            else:
+                best = sorted(enumerate(scores), key=lambda x: -x[1])
+            if filter_liked:
+                return list(itertools.islice((rec for rec in best), N))
+            return list(itertools.islice((rec for rec in best if rec[0] not in liked), N))
+
+        def rank_items(self, userid, selected_items, recalculate_user=False):
+            user = self._user_factor(userid, self.user_items, recalculate_user)
+
+            # check selected items are  in the model
+            if max(selected_items) >= self.user_items.shape[1] or min(selected_items) < 0:
+                raise IndexError("Some of selected itemids are not in the model")
+
+            item_factors = self.item_factors[selected_items]
+            # calculate relevance scores of given items w.r.t the user
+            scores = item_factors.dot(user)
+
+            # return sorted results
+            return sorted(zip(selected_items, scores), key=lambda x: -x[1])
 
 @cython.cdivision(True)
 @cython.boundscheck(False)
