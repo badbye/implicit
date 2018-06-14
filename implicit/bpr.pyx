@@ -425,37 +425,38 @@ class BayesianPersonalizedFavorRanking(BayesianPersonalizedRanking):
                                       "skipped": "%.2f%%" % (100.0 * skipped / total)})
 
 
-        def recommend(self, userid, N=10, filter_liked=False, filter_items=None, recalculate_user=False):
-            user = self._user_factor(userid, self.user_items, recalculate_user)
-            # calculate the top N items, removing the users own liked items from the results
-            liked = set(self.user_items[userid].indices)
-            scores = self.item_factors.dot(user)
-            if filter_items:
-                liked.update(filter_items)
+    def recommend(self, userid, N=10, filter_liked=False, filter_items=None, recalculate_user=False):
+        user = self._user_factor(userid, self.user_items, recalculate_user)
+        # calculate the top N items, removing the users own liked items from the results
+        liked = set(self.user_items[userid].indices)
+        scores = self.item_factors.dot(user)
+        if filter_items:
+            liked.update(filter_items)
 
-            count = N + len(liked)
-            if count < len(scores):
-                ids = np.argpartition(scores, -count)[-count:]
-                best = sorted(zip(ids, scores[ids]), key=lambda x: -x[1])
-            else:
-                best = sorted(enumerate(scores), key=lambda x: -x[1])
-            if filter_liked:
-                return list(itertools.islice((rec for rec in best), N))
-            return list(itertools.islice((rec for rec in best if rec[0] not in liked), N))
+        count = N + len(liked)
+        if count < len(scores):
+            ids = np.argpartition(scores, -count)[-count:]
+            best = sorted(zip(ids, scores[ids]), key=lambda x: -x[1])
+        else:
+            best = sorted(enumerate(scores), key=lambda x: -x[1])
+        if filter_liked:
+            return list(itertools.islice((rec for rec in best), N))
+        return list(itertools.islice((rec for rec in best if rec[0] not in liked), N))
 
-        def rank_items(self, userid, selected_items, recalculate_user=False):
-            user = self._user_factor(userid, self.user_items, recalculate_user)
+    def rank_items(self, userid, selected_items, recalculate_user=False):
+        user = self._user_factor(userid, self.user_items, recalculate_user)
 
-            # check selected items are  in the model
-            if max(selected_items) >= self.user_items.shape[1] or min(selected_items) < 0:
-                raise IndexError("Some of selected itemids are not in the model")
+        # check selected items are  in the model
+        if max(selected_items) >= self.user_items.shape[1] or min(selected_items) < 0:
+            raise IndexError("Some of selected itemids are not in the model")
 
-            item_factors = self.item_factors[selected_items]
-            # calculate relevance scores of given items w.r.t the user
-            scores = item_factors.dot(user)
+        item_factors = self.item_factors[selected_items]
+        # calculate relevance scores of given items w.r.t the user
+        scores = item_factors.dot(user)
 
-            # return sorted results
-            return sorted(zip(selected_items, scores), key=lambda x: -x[1])
+        # return sorted results
+        return sorted(zip(selected_items, scores), key=lambda x: -x[1])
+
 
 @cython.cdivision(True)
 @cython.boundscheck(False)
