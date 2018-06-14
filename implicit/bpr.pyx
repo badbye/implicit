@@ -440,8 +440,9 @@ class BayesianPersonalizedFavorRanking(BayesianPersonalizedRanking):
         else:
             best = sorted(enumerate(scores), key=lambda x: -x[1])
         if filter_liked:
-            return list(itertools.islice((rec for rec in best), N))
-        return list(itertools.islice((rec for rec in best if rec[0] not in liked), N))
+            return list(itertools.islice((rec for rec in best if rec[0] not in liked), N))
+        return list(itertools.islice((rec for rec in best), N))
+
 
     def rank_items(self, userid, selected_items, recalculate_user=False):
         user = self._user_factor(userid, self.user_items, recalculate_user)
