@@ -20,6 +20,7 @@ import scipy.sparse
 import implicit.cuda
 
 from .recommender_base import MatrixFactorizationBase
+from abc import ABCMeta, abstractmethod
 
 
 cdef extern from "<random>" namespace "std":
@@ -424,8 +425,30 @@ class BayesianPersonalizedFavorRanking(BayesianPersonalizedRanking):
                 progress.set_postfix({"correct": "%.2f%%" % (100.0 * correct / (total - skipped)),
                                       "skipped": "%.2f%%" % (100.0 * skipped / total)})
 
-
+    @abstractmethod
     def recommend(self, userid, N=10, filter_liked=False, filter_items=None, recalculate_user=False):
+        """
+        Recommends items for a user
+
+        Calculates the N best recommendations for a user, and returns a list of itemids, score.
+
+        Parameters
+        ----------
+        userid : int
+            The userid to calculate recommendations for
+        N : int, optional
+            The number of results to return
+        filter_items : sequence of ints, optional
+            List of extra item ids to filter out from the output
+        recalculate_user : bool, optional
+            When true, don't rely on stored user state and instead recalculate from the
+            passed in user_items
+
+        Returns
+        -------
+        list
+            List of (itemid, score) tuples
+        """
         user = self._user_factor(userid, self.user_items, recalculate_user)
         # calculate the top N items, removing the users own liked items from the results
         liked = set(self.user_items[userid].indices)
@@ -443,8 +466,26 @@ class BayesianPersonalizedFavorRanking(BayesianPersonalizedRanking):
             return list(itertools.islice((rec for rec in best if rec[0] not in liked), N))
         return list(itertools.islice((rec for rec in best), N))
 
-
+    @abstractmethod
     def rank_items(self, userid, selected_items, recalculate_user=False):
+        """
+        Rank given items for a user and returns sorted item list.
+
+        Parameters
+        ----------
+        userid : int
+            The userid to calculate recommendations for
+        selected_items : List of itemids
+        recalculate_user : bool, optional
+            When true, don't rely on stored user state and instead recalculate from the
+            passed in user_items
+
+        Returns
+        -------
+        list
+            List of (itemid, score) tuples. it only contains items that appears in
+            input parameter selected_items
+        """
         user = self._user_factor(userid, self.user_items, recalculate_user)
 
         # check selected items are  in the model
